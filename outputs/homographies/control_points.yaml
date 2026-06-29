@@ -1,0 +1,72 @@
+metadata:
+  annotation_mode: adjacent_pair
+  reference_camera: uav1
+  camera_order:
+  - uav1
+  - uav2
+  - uav3
+  - uav4
+pairs:
+  uav2__to__uav1:
+    source_camera: uav2
+    target_camera: uav1
+    src_points:
+    - - 603
+      - 124
+    - - 722
+      - 309
+    - - 720
+      - 602
+    - - 577
+      - 715
+    dst_points:
+    - - 1094
+      - 478
+    - - 1229
+      - 679
+    - - 1221
+      - 1017
+    - - 1069
+      - 1143
+  uav3__to__uav2:
+    source_camera: uav3
+    target_camera: uav2
+    src_points:
+    - - 998
+      - 216
+    - - 1042
+      - 541
+    - - 688
+      - 647
+    - - 1186
+      - 104
+    dst_points:
+    - - 577
+      - 719
+    - - 623
+      - 1044
+    - - 223
+      - 1169
+    - - 787
+      - 602
+  uav4__to__uav3:
+    source_camera: uav4
+    target_camera: uav3
+    src_points:
+    - - 869
+      - 1020
+    - - 791
+      - 935
+    - - 482
+      - 835
+    - - 534
+      - 577
+    dst_points:
+    - - 467
+      - 620
+    - - 383
+      - 527
+    - - 78
+      - 401
+    - - 128
+      - 128

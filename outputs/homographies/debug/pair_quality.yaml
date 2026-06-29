@@ -1,0 +1,24 @@
+uav2__to__uav1:
+  feature_method: sift
+  matches: 173
+  inliers: 98
+  inlier_ratio: 0.5664739884393064
+  warp_model: apap
+  source_camera: uav2
+  target_camera: uav1
+uav3__to__uav2:
+  feature_method: sift
+  matches: 191
+  inliers: 120
+  inlier_ratio: 0.6282722513089005
+  warp_model: apap
+  source_camera: uav3
+  target_camera: uav2
+uav4__to__uav3:
+  feature_method: sift
+  matches: 191
+  inliers: 134
+  inlier_ratio: 0.7015706806282722
+  warp_model: apap
+  source_camera: uav4
+  target_camera: uav3
