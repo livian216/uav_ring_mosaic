@@ -20,6 +20,7 @@ camera:
 
 masks:
   use_building_mask: true
+  ground_priority: true
   building_masks:
     uav1: data/masks/uav1_building_mask.png
     uav2: data/masks/uav2_building_mask.png
@@ -32,7 +33,9 @@ homography:
   homography_file: outputs/homographies/homographies.yaml
   compute_if_missing: true
   camera_order: [uav1, uav2, uav3, uav4]
-  feature_method: sift
+  feature_method: superpoint_lightglue
+  graph_mode: overlap_graph
+  layout_optimization: global_homography_graph
   nfeatures: 4000
   ratio_test: 0.75
   ransac_reproj_threshold: 4.0
@@ -52,8 +55,10 @@ homography:
     min_weight: 0.001
 
 canvas:
+  mode: auto_fit
   width: 3000
   height: 3000
+  margin_px: 96
   background_color: [0, 0, 0]
   preview_scale: 0.5
   building_anchor:
@@ -70,6 +75,8 @@ annotation:
 blending:
   method: feather
   exclude_building_area: true
+  confidence_scope: overlap_only
+  building_strategy: reference_overlay
   feather_radius: 25
   building_overlay_alpha: 0.45
   building_reference_camera: uav1
@@ -80,6 +87,9 @@ video:
   output_path: outputs/videos/mosaic_output.mp4
   display_window: true
   on_stream_end: hold_last_frame
+
+runtime:
+  reuse_static_layout: true
 
 debug:
   save_warped_images: true

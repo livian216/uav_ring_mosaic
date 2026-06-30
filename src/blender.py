@@ -24,6 +24,8 @@ def build_weight_map(
     feather_radius: int,
     exclude_mask: Optional[np.ndarray] = None,
     confidence_mask: Optional[np.ndarray] = None,
+    overlap_mask: Optional[np.ndarray] = None,
+    confidence_scope: str = "overlap_only",
 ) -> np.ndarray:
     if method not in {"average", "alpha", "feather"}:
         raise ConfigError(f"Unsupported blending method: {method}")
@@ -34,7 +36,12 @@ def build_weight_map(
     if exclude_mask is not None:
         weight[exclude_mask > 0] = 0.0
     if confidence_mask is not None:
-        weight *= confidence_mask.astype(np.float32) / 255.0
+        confidence = confidence_mask.astype(np.float32) / 255.0
+        if confidence_scope == "full_frame" or overlap_mask is None:
+            weight *= confidence
+        else:
+            overlap_binary = overlap_mask > 0
+            weight[overlap_binary] *= confidence[overlap_binary]
     return weight
 
 
@@ -48,11 +55,28 @@ def blend_warped_images(
     method = str(config.get("method", "feather"))
     feather_radius = int(config.get("feather_radius", 25))
     exclude_building = bool(config.get("exclude_building_area", True))
+    confidence_scope = str(config.get("confidence_scope", "overlap_only")).lower()
+    if confidence_scope not in {"overlap_only", "full_frame"}:
+        raise ConfigError(f"Unsupported confidence_scope: {confidence_scope}")
 
     first_image = next(iter(warped_images.values()))
     accum = np.zeros(first_image.shape, dtype=np.float32)
     total_weight = np.zeros(first_image.shape[:2], dtype=np.float32)
     weight_maps: Dict[str, np.ndarray] = {}
+    valid_binary = {
+        camera_id: (valid_mask > 0).astype(np.uint8)
+        for camera_id, valid_mask in valid_masks.items()
+    }
+    overlap_masks: Dict[str, np.ndarray] = {}
+    if confidence_scope == "overlap_only":
+        total_valid = np.zeros(first_image.shape[:2], dtype=np.uint16)
+        for binary in valid_binary.values():
+            total_valid += binary.astype(np.uint16)
+        overlap_union = np.where(total_valid > 1, 255, 0).astype(np.uint8)
+        for camera_id, binary in valid_binary.items():
+            overlap_masks[camera_id] = np.where((overlap_union > 0) & (binary > 0), 255, 0).astype(np.uint8)
+    else:
+        overlap_masks = {camera_id: np.zeros(first_image.shape[:2], dtype=np.uint8) for camera_id in warped_images}
 
     for camera_id, image in warped_images.items():
         building_mask = building_masks.get(camera_id) if exclude_building else None
@@ -62,6 +86,8 @@ def blend_warped_images(
             feather_radius,
             building_mask,
             confidence_masks.get(camera_id),
+            overlap_masks.get(camera_id),
+            confidence_scope,
         )
         weight_maps[camera_id] = weight
         accum += image.astype(np.float32) * weight[..., None]
@@ -78,12 +104,19 @@ def overlay_building_region(
     reference_image: np.ndarray,
     building_mask: Optional[np.ndarray],
     alpha: float,
+    strategy: str = "reference_overlay",
 ) -> np.ndarray:
     if building_mask is None:
         return base_image
+    normalized = str(strategy).lower()
+    if normalized == "exclude":
+        return base_image
+    if normalized not in {"weak_blend", "reference_overlay"}:
+        raise ConfigError(f"Unsupported building_strategy: {strategy}")
     output = base_image.copy().astype(np.float32)
     reference = reference_image.astype(np.float32)
     mask = (building_mask > 0)[..., None].astype(np.float32)
-    blended = output * (1.0 - alpha) + reference * alpha
+    overlay_alpha = alpha if normalized == "weak_blend" else 1.0
+    blended = output * (1.0 - overlay_alpha) + reference * overlay_alpha
     output = output * (1.0 - mask) + blended * mask
     return np.clip(output, 0, 255).astype(np.uint8)

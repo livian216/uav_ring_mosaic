@@ -9,7 +9,7 @@ import numpy as np
 from blender import blend_warped_images, overlay_building_region
 from calibration import undistort_image
 from drift_correction import estimate_translation_offset
-from homography import load_homographies
+from homography import load_homography_bundle
 from mosaic_canvas import warp_to_canvas
 from video_io import open_video_streams, read_stream_frame, release_streams
 from utils import (
@@ -49,7 +49,7 @@ def main() -> None:
     homography_path = get_output_path(root, config["homography"]["homography_file"])
     if not homography_path.exists():
         raise ConfigError("Video mode requires a precomputed homography file.")
-    homographies = load_homographies(homography_path)
+    homographies, homography_metadata = load_homography_bundle(homography_path)
 
     camera_cfg = config.get("camera", {})
     use_undistort = bool(camera_cfg.get("use_undistort", False))
@@ -70,8 +70,8 @@ def main() -> None:
             frame_shapes[camera_id] = frame.shape[:2]
 
         masks = load_optional_masks(config, root, frame_shapes)
-        width = int(config["canvas"]["width"])
-        height = int(config["canvas"]["height"])
+        width = int(homography_metadata.get("canvas_width", config["canvas"]["width"]))
+        height = int(homography_metadata.get("canvas_height", config["canvas"]["height"]))
         canvas_size = (width, height)
 
         if bool(config["video"].get("save_output", True)):
@@ -88,6 +88,7 @@ def main() -> None:
             warped_images: Dict[str, np.ndarray] = {}
             valid_masks: Dict[str, np.ndarray] = {}
             warped_building_masks: Dict[str, Optional[np.ndarray]] = {}
+            warped_confidence_masks: Dict[str, Optional[np.ndarray]] = {}
 
             for camera_id, state in streams.items():
                 success, frame = read_stream_frame(state)
@@ -103,11 +104,13 @@ def main() -> None:
                 warped_images[camera_id] = result.warped_image
                 valid_masks[camera_id] = result.valid_mask
                 warped_building_masks[camera_id] = result.warped_building_mask
+                warped_confidence_masks[camera_id] = result.warped_confidence_mask
 
             blended, _, _ = blend_warped_images(
                 warped_images,
                 valid_masks,
                 warped_building_masks,
+                warped_confidence_masks,
                 config["blending"],
             )
 
@@ -117,6 +120,7 @@ def main() -> None:
                 warped_images[reference_camera],
                 warped_building_masks.get(reference_camera),
                 float(config["blending"].get("building_overlay_alpha", 0.45)),
+                str(config["blending"].get("building_strategy", "reference_overlay")),
             )
 
             if writer is not None:

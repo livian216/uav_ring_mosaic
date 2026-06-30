@@ -9,7 +9,7 @@ import numpy as np
 from apap import build_apap_model, warp_image_with_apap
 from blender import blend_warped_images, overlay_building_region
 from calibration import undistort_image
-from homography import build_camera_graph, ensure_homographies, save_homographies
+from homography import build_camera_graph, ensure_homography_bundle, save_homographies
 from mosaic_canvas import warp_to_canvas
 from utils import (
     ConfigError,
@@ -58,6 +58,7 @@ def main() -> None:
     image_shapes = {camera_id: image.shape[:2] for camera_id, image in loaded_images.items()}
     source_confidence_masks: Dict[str, Optional[np.ndarray]] = {camera_id: None for camera_id in image_paths}
     pair_models: Dict[str, dict[str, Any]] = {}
+    canvas_metadata: Dict[str, Any] = {}
     if config["homography"].get("mode", "manual") == "auto":
         auto_result = build_camera_graph(
             loaded_images,
@@ -67,14 +68,24 @@ def main() -> None:
             debug_dir=root / "outputs" / "homographies" / "debug",
         )
         homographies = auto_result["homographies"]
+        canvas_metadata = auto_result.get("canvas_metadata", {})
         source_confidence_masks.update(auto_result.get("confidence_masks", {}))
         pair_models = auto_result.get("pair_models", {})
-        save_homographies(homography_path, homographies)
+        save_homographies(
+            homography_path,
+            homographies,
+            {
+                **canvas_metadata,
+                "reference_camera": auto_result.get("reference_camera"),
+                "parent_map": auto_result.get("parent_map", {}),
+                "layout_graph": auto_result.get("layout_graph", {}),
+            },
+        )
         if auto_result.get("pair_reports"):
             from utils import save_yaml
             save_yaml(root / "outputs" / "homographies" / "debug" / "pair_quality.yaml", auto_result["pair_reports"])
     else:
-        homographies = ensure_homographies(
+        homographies, canvas_metadata = ensure_homography_bundle(
             control_points_path,
             homography_path,
             bool(config["homography"].get("compute_if_missing", True)),
@@ -83,8 +94,8 @@ def main() -> None:
             building_masks=masks,
         )
 
-    width = int(config["canvas"]["width"])
-    height = int(config["canvas"]["height"])
+    width = int(canvas_metadata.get("canvas_width", config["canvas"]["width"]))
+    height = int(canvas_metadata.get("canvas_height", config["canvas"]["height"]))
     canvas_size = (width, height)
 
     warped_images: Dict[str, np.ndarray] = {}
@@ -155,6 +166,7 @@ def main() -> None:
 
     reference_camera = config["blending"].get("building_reference_camera", next(iter(warped_images)))
     overlay_alpha = float(config["blending"].get("building_overlay_alpha", 0.45))
+    building_strategy = str(config["blending"].get("building_strategy", "reference_overlay"))
     if reference_camera not in warped_images:
         raise ConfigError(f"Building reference camera not found: {reference_camera}")
     final_mosaic = overlay_building_region(
@@ -162,6 +174,7 @@ def main() -> None:
         warped_images[reference_camera],
         warped_building_masks.get(reference_camera),
         overlay_alpha,
+        building_strategy,
     )
 
     if config["debug"].get("save_weight_maps", True):
@@ -170,6 +183,23 @@ def main() -> None:
             save_image(debug_dir / f"{camera_id}_weight.png", vis)
         total_vis = np.clip((total_weight / max(total_weight.max(), 1e-6)) * 255.0, 0, 255).astype(np.uint8)
         save_image(debug_dir / "total_weight.png", total_vis)
+
+    debug_summary = {
+        "canvas_size": {"width": width, "height": height},
+        "canvas_metadata": canvas_metadata,
+        "coverage": {},
+    }
+    for camera_id, valid_mask in valid_masks.items():
+        ys, xs = np.where(valid_mask > 0)
+        if len(xs) == 0:
+            continue
+        debug_summary["coverage"][camera_id] = {
+            "valid_bbox": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
+            "valid_area": int((valid_mask > 0).sum()),
+            "weight_area": int((weight_maps[camera_id] > 1e-6).sum()),
+        }
+    from utils import save_yaml
+    save_yaml(debug_dir / "coverage_summary.yaml", debug_summary)
 
     output_path = root / "outputs" / "mosaics" / "mosaic_result.jpg"
     preview_path = root / "outputs" / "mosaics" / "mosaic_preview.jpg"
