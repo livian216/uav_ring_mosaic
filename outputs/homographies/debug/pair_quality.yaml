@@ -1,50 +1,40 @@
 uav2__to__uav1:
-  feature_method: sift
-  matches: 172
-  inliers: 97
-  inlier_ratio: 0.563953488372093
+  feature_method: loftr
+  matches: 4160
+  inliers: 2046
+  inlier_ratio: 0.49182692307692305
   warp_model: apap
   source_camera: uav2
   target_camera: uav1
-  score: 6.603681634876187
-  support_area_ratio: 0.24558923406820662
+  score: 17.663458932320637
+  support_area_ratio: 0.3152559338028993
 uav3__to__uav2:
-  feature_method: sift
-  matches: 190
-  inliers: 117
-  inlier_ratio: 0.6157894736842106
+  feature_method: loftr
+  matches: 4641
+  inliers: 2310
+  inlier_ratio: 0.497737556561086
   warp_model: apap
   source_camera: uav3
   target_camera: uav2
-  score: 7.870305179201921
-  support_area_ratio: 0.2600717576164567
+  score: 18.628448497197528
+  support_area_ratio: 0.32231977289897207
 uav4__to__uav1:
-  feature_method: sift
-  matches: 118
-  inliers: 79
-  inlier_ratio: 0.6694915254237288
+  feature_method: loftr
+  matches: 3330
+  inliers: 1548
+  inlier_ratio: 0.4648648648648649
   warp_model: apap
   source_camera: uav4
   target_camera: uav1
-  score: 5.663271166291184
-  support_area_ratio: 0.1539233941021904
-uav4__to__uav2:
-  feature_method: sift
-  matches: 104
-  inliers: 53
-  inlier_ratio: 0.5096153846153846
-  warp_model: apap
-  source_camera: uav4
-  target_camera: uav2
-  score: 4.375937415323403
-  support_area_ratio: 0.2125339265228462
+  score: 14.232851957310586
+  support_area_ratio: 0.26389683793360447
 uav4__to__uav3:
-  feature_method: sift
-  matches: 193
-  inliers: 140
-  inlier_ratio: 0.7253886010362695
+  feature_method: loftr
+  matches: 5852
+  inliers: 3332
+  inlier_ratio: 0.569377990430622
   warp_model: apap
   source_camera: uav4
   target_camera: uav3
-  score: 10.638347062786329
-  support_area_ratio: 0.31256534114756224
+  score: 25.16442647413532
+  support_area_ratio: 0.37809217839436926

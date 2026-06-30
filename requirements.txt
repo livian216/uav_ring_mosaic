@@ -2,3 +2,7 @@ opencv-python
 numpy
 pyyaml
 tqdm
+torch
+torchvision
+kornia
+git+https://github.com/cvg/LightGlue.git

@@ -77,43 +77,45 @@ def _try_match_superpoint_lightglue(image_a, image_b, mask_a=None, mask_b=None, 
         from lightglue.utils import rbd
     except Exception as exc:
         raise ConfigError(f"SuperPoint+LightGlue dependencies unavailable: {exc}") from exc
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        extractor = SuperPoint(max_num_keypoints=max_keypoints).eval().to(device)
+        matcher = LightGlue(features="superpoint").eval().to(device)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    extractor = SuperPoint(max_num_keypoints=max_keypoints).eval().to(device)
-    matcher = LightGlue(features="superpoint").eval().to(device)
+        tensor_a = torch.from_numpy(_to_gray_tensor(image_a))[None, None].to(device)
+        tensor_b = torch.from_numpy(_to_gray_tensor(image_b))[None, None].to(device)
+        feats_a = extractor.extract(tensor_a)
+        feats_b = extractor.extract(tensor_b)
 
-    tensor_a = torch.from_numpy(_to_gray_tensor(image_a))[None, None].to(device)
-    tensor_b = torch.from_numpy(_to_gray_tensor(image_b))[None, None].to(device)
-    feats_a = extractor.extract(tensor_a)
-    feats_b = extractor.extract(tensor_b)
+        if mask_a is not None:
+            keep = mask_a[np.round(feats_a["keypoints"][0, :, 1].cpu().numpy()).astype(int), np.round(feats_a["keypoints"][0, :, 0].cpu().numpy()).astype(int)] > 0
+            keep_tensor = torch.from_numpy(keep).to(device=device, dtype=torch.bool)
+            feats_a = {key: value[:, keep_tensor] if value.ndim >= 3 else value for key, value in feats_a.items()}
+        if mask_b is not None:
+            keep = mask_b[np.round(feats_b["keypoints"][0, :, 1].cpu().numpy()).astype(int), np.round(feats_b["keypoints"][0, :, 0].cpu().numpy()).astype(int)] > 0
+            keep_tensor = torch.from_numpy(keep).to(device=device, dtype=torch.bool)
+            feats_b = {key: value[:, keep_tensor] if value.ndim >= 3 else value for key, value in feats_b.items()}
 
-    if mask_a is not None:
-        keep = mask_a[np.round(feats_a["keypoints"][0, :, 1].cpu().numpy()).astype(int), np.round(feats_a["keypoints"][0, :, 0].cpu().numpy()).astype(int)] > 0
-        keep_tensor = torch.from_numpy(keep).to(device=device, dtype=torch.bool)
-        feats_a = {key: value[:, keep_tensor] if value.ndim >= 3 else value for key, value in feats_a.items()}
-    if mask_b is not None:
-        keep = mask_b[np.round(feats_b["keypoints"][0, :, 1].cpu().numpy()).astype(int), np.round(feats_b["keypoints"][0, :, 0].cpu().numpy()).astype(int)] > 0
-        keep_tensor = torch.from_numpy(keep).to(device=device, dtype=torch.bool)
-        feats_b = {key: value[:, keep_tensor] if value.ndim >= 3 else value for key, value in feats_b.items()}
+        matches01 = matcher({"image0": feats_a, "image1": feats_b})
+        feats_a, feats_b, matches01 = [rbd(item) for item in (feats_a, feats_b, matches01)]
+        matches = matches01["matches"].detach().cpu().numpy()
+        points_a = feats_a["keypoints"].detach().cpu().numpy()
+        points_b = feats_b["keypoints"].detach().cpu().numpy()
 
-    matches01 = matcher({"image0": feats_a, "image1": feats_b})
-    feats_a, feats_b, matches01 = [rbd(item) for item in (feats_a, feats_b, matches01)]
-    matches = matches01["matches"].detach().cpu().numpy()
-    points_a = feats_a["keypoints"].detach().cpu().numpy()
-    points_b = feats_b["keypoints"].detach().cpu().numpy()
-
-    keypoints_a = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_a]
-    keypoints_b = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_b]
-    cv_matches = [
-        cv2.DMatch(_queryIdx=int(index_a), _trainIdx=int(index_b), _distance=0.0)
-        for index_a, index_b in matches
-    ]
-    return {
-        "method": "superpoint_lightglue",
-        "keypoints_a": keypoints_a,
-        "keypoints_b": keypoints_b,
-        "matches": cv_matches,
-    }
+        keypoints_a = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_a]
+        keypoints_b = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_b]
+        cv_matches = [
+            cv2.DMatch(_queryIdx=int(index_a), _trainIdx=int(index_b), _distance=0.0)
+            for index_a, index_b in matches
+        ]
+        return {
+            "method": "superpoint_lightglue",
+            "keypoints_a": keypoints_a,
+            "keypoints_b": keypoints_b,
+            "matches": cv_matches,
+        }
+    except Exception as exc:
+        raise ConfigError(f"SuperPoint+LightGlue runtime failed: {exc}") from exc
 
 
 def _try_match_loftr(image_a, image_b, mask_a=None, mask_b=None):
@@ -123,40 +125,42 @@ def _try_match_loftr(image_a, image_b, mask_a=None, mask_b=None):
         import kornia.feature as KF
     except Exception as exc:
         raise ConfigError(f"LoFTR dependencies unavailable: {exc}") from exc
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        matcher = KF.LoFTR(pretrained="outdoor").eval().to(device)
+        tensor_a = torch.from_numpy(_to_gray_tensor(image_a))[None, None].to(device)
+        tensor_b = torch.from_numpy(_to_gray_tensor(image_b))[None, None].to(device)
+        with torch.inference_mode():
+            result = matcher({"image0": tensor_a, "image1": tensor_b})
+        points_a = result["keypoints0"].detach().cpu().numpy()
+        points_b = result["keypoints1"].detach().cpu().numpy()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    matcher = KF.LoFTR(pretrained="outdoor").eval().to(device)
-    tensor_a = torch.from_numpy(_to_gray_tensor(image_a))[None, None].to(device)
-    tensor_b = torch.from_numpy(_to_gray_tensor(image_b))[None, None].to(device)
-    with torch.inference_mode():
-        result = matcher({"image0": tensor_a, "image1": tensor_b})
-    points_a = result["keypoints0"].detach().cpu().numpy()
-    points_b = result["keypoints1"].detach().cpu().numpy()
+        if mask_a is not None:
+            keep_a = mask_a[np.clip(np.round(points_a[:, 1]).astype(int), 0, mask_a.shape[0] - 1), np.clip(np.round(points_a[:, 0]).astype(int), 0, mask_a.shape[1] - 1)] > 0
+        else:
+            keep_a = np.ones(len(points_a), dtype=bool)
+        if mask_b is not None:
+            keep_b = mask_b[np.clip(np.round(points_b[:, 1]).astype(int), 0, mask_b.shape[0] - 1), np.clip(np.round(points_b[:, 0]).astype(int), 0, mask_b.shape[1] - 1)] > 0
+        else:
+            keep_b = np.ones(len(points_b), dtype=bool)
+        keep = keep_a & keep_b
+        points_a = points_a[keep]
+        points_b = points_b[keep]
 
-    if mask_a is not None:
-        keep_a = mask_a[np.clip(np.round(points_a[:, 1]).astype(int), 0, mask_a.shape[0] - 1), np.clip(np.round(points_a[:, 0]).astype(int), 0, mask_a.shape[1] - 1)] > 0
-    else:
-        keep_a = np.ones(len(points_a), dtype=bool)
-    if mask_b is not None:
-        keep_b = mask_b[np.clip(np.round(points_b[:, 1]).astype(int), 0, mask_b.shape[0] - 1), np.clip(np.round(points_b[:, 0]).astype(int), 0, mask_b.shape[1] - 1)] > 0
-    else:
-        keep_b = np.ones(len(points_b), dtype=bool)
-    keep = keep_a & keep_b
-    points_a = points_a[keep]
-    points_b = points_b[keep]
-
-    keypoints_a = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_a]
-    keypoints_b = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_b]
-    cv_matches = [
-        cv2.DMatch(_queryIdx=index, _trainIdx=index, _distance=0.0)
-        for index in range(len(points_a))
-    ]
-    return {
-        "method": "loftr",
-        "keypoints_a": keypoints_a,
-        "keypoints_b": keypoints_b,
-        "matches": cv_matches,
-    }
+        keypoints_a = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_a]
+        keypoints_b = [cv2.KeyPoint(float(x), float(y), 1.0) for x, y in points_b]
+        cv_matches = [
+            cv2.DMatch(_queryIdx=index, _trainIdx=index, _distance=0.0)
+            for index in range(len(points_a))
+        ]
+        return {
+            "method": "loftr",
+            "keypoints_a": keypoints_a,
+            "keypoints_b": keypoints_b,
+            "matches": cv_matches,
+        }
+    except Exception as exc:
+        raise ConfigError(f"LoFTR runtime failed: {exc}") from exc
 
 
 def match_features(image_a, image_b, mask_a=None, mask_b=None, method="sift", nfeatures=4000, ratio_test=0.75):

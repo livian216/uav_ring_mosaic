@@ -1,4 +1,8 @@
+# 项目开发参考材料
 guideline/
+
+# Python 依赖环境
+.venv/
 
 # Python runtime caches
 __pycache__/

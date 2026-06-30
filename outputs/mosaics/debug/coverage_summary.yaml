@@ -1,57 +1,57 @@
 canvas_size:
-  width: 2184
-  height: 2127
+  width: 2219
+  height: 2241
 canvas_metadata:
   canvas_mode: auto_fit
-  canvas_width: 2184
-  canvas_height: 2127
+  canvas_width: 2219
+  canvas_height: 2241
   translation:
   - - 1.0
     - 0.0
-    - 96.0
+    - 510.35833740234375
   - - 0.0
     - 1.0
-    - 405.87200927734375
+    - 891.6693725585938
   - - 0.0
     - 0.0
     - 1.0
   bounds_before_translation:
     min:
-    - 0.0
-    - -309.87200927734375
+    - -414.35833740234375
+    - -795.6693725585938
     max:
-    - 1991.2265625
-    - 1624.6280517578125
+    - 1612.052978515625
+    - 1253.0
 coverage:
   uav1:
     valid_bbox:
-    - 607
+    - 633
     - 96
-    - 1641
-    - 1137
-    valid_area: 1038515
-    weight_area: 758938
+    - 1652
+    - 1203
+    valid_area: 1104021
+    weight_area: 808467
   uav2:
     valid_bbox:
-    - 974
-    - 383
-    - 2088
-    - 1523
-    valid_area: 1245084
-    weight_area: 1011742
+    - 984
+    - 396
+    - 2123
+    - 1649
+    valid_area: 1386055
+    weight_area: 1137907
   uav3:
     valid_bbox:
-    - 497
-    - 840
-    - 1758
-    - 2031
-    valid_area: 1458646
-    weight_area: 1231580
+    - 510
+    - 891
+    - 1764
+    - 2145
+    valid_area: 1575025
+    weight_area: 1327544
   uav4:
     valid_bbox:
-    - 96
-    - 405
-    - 1349
-    - 1659
-    valid_area: 1573770
-    weight_area: 1305109
+    - 510
+    - 891
+    - 1764
+    - 2145
+    valid_area: 1575025
+    weight_area: 523754
